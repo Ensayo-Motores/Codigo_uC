@@ -51,7 +51,7 @@
 //----------CON ESTO ELEGIS SI QUERES HACER UNA MEDICION O LA OTRA------------//
 
 //#define MEDICION_VELGIRO
-//#define MEDICION_VELRESPUESTA
+#define MEDICION_VELRESPUESTA
 
 /* USER CODE END Includes */
 
@@ -88,7 +88,8 @@ int main(void)
 
 	uint8_t aux[20];
 	uint8_t trbuffer[] = "Hola mundo\r\n";
-	uint32_t i=0, state = 0;
+	uint32_t i=0;
+	uint32_t state = 0, start = 0, end = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -120,9 +121,9 @@ int main(void)
   //__HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,1000);
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
   //HAL_Delay(2000);
-  timer = 0;
 
   HAL_Delay(1000);
+  timer = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -186,42 +187,56 @@ int main(void)
 #elif defined(MEDICION_VELRESPUESTA)
 
 	  // De 25 a 29 - De 29 a 25 - De 25 a 21 - De 21 a 25...
-	  if(!i && timer > 5000)
+
+	  if(!start)
 	  {
-		  i=1;
-		  CDC_Transmit_FS(&trbuffer[0],(uint16_t)(strlen((char*)trbuffer)+1));
-		  __HAL_TIM_SetCounter(&htim2, 0);
-		  input_capture = 0;
-		  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,645);
-		  timer = 0;
+		  if(timer > 5000)
+		  {
+			  CDC_Transmit_FS(&trbuffer[0],(uint16_t)(strlen((char*)trbuffer)+1));
+			  __HAL_TIM_SetCounter(&htim2, 0);
+			  cant_veces = 0;
+			  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,645);	//De 25 a 29
+			  timer = 0;
+			  start = 1;
+		  }
 	  }
 	  else
 	  {
-		  if(input_capture != 0 && timer <= 300  && input_capture > 100)
+		  if (timer <= 500 && !end)
 		  {
+			  if(cant_veces > 0)
+			  {
+				  cant_veces = 0;
+				  if(input_capture > 100)
+				  {
+					  sprintf((char*)aux,"%lu\n",input_capture);
+					  CDC_Transmit_FS(&aux[0],(uint16_t)(strlen((char*)aux)+1));
+				  }
+			  }
+		  }
+		  else
+		  {
+			  timer = 0;
+			  switch(state)
+			  {
+			  case 0:
+				  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,625);	//De 29 a 25
+				  break;
 
-			  sprintf((char*)aux,"%lu\n",input_capture);
-			  CDC_Transmit_FS(&aux[0],(uint16_t)(strlen((char*)aux)+1));
-			  input_capture = 0;
-		  }
-		  if(input_capture != 0 && timer > 300 && timer <=6000)
-		  {
-			  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,625);
-//		  	  CDC_Transmit_FS(&aux[0],(uint16_t)(strlen((char*)aux)+1));
-		  }
-		  if(input_capture != 0 && timer > 6000 && timer <=6900)
-		  {
-			  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,605);
-		  	  CDC_Transmit_FS(&aux[0],(uint16_t)(strlen((char*)aux)+1));
-		  }
-		  if(input_capture != 0 && timer > 6900 && timer <=12000)
-		  {
-			  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,625);
-		  	  CDC_Transmit_FS(&aux[0],(uint16_t)(strlen((char*)aux)+1));
-		  }
-		  if(timer > 12000)
-		  {
-			  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,500);
+			  case 1:
+				  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,605);	//De 25 a 21
+				  break;
+
+			  case 2:
+				  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,605);	//De 21 a 25
+				  break;
+
+			  default:
+				  end = 1;
+				  __HAL_TIM_SET_COMPARE(&htim1,TIM_CHANNEL_1,500);	//Apago motor
+				  break;
+			  }
+			  state++;
 		  }
 	  }
 #else
